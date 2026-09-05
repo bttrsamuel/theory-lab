@@ -283,7 +283,7 @@ export default function Home() {
           screeningFinal: undefined,
           fullTextFinal: undefined,
           pdfFile: null,
-          fullTextContent: `[Texto do Estudo: ${a.title}]\n\n1. Introdução Teórica\nEstudo direcionado à fundamentação conceitual e levantamento de evidências empíricas.\n\n2. Métodos e Evidências Empíricas\nResultados obtidos mediante observação de campo e análise documental.\n\n3. Discussão dos Resultados\nApresentação de dados com implicações diretas sobre as categorias a priori.`,
+          fullTextContent: `[Texto do Estudo: ${a.title}]\n\n1. Introdução Teórica\nEstudo direcionado à fundamentação conceitual e levantamento de evidências empíricas.\n\n2. Métodos e Evidências Empíricas\nResultados obtidos mediante observação de campo e análise documental.\n\n3. Discussão dos Resultados\nApresentação de dados com implicações diretas sobre the categorias a priori.`,
         }));
 
         setRawImportedArticles(mapped);
@@ -545,7 +545,7 @@ export default function Home() {
   const totalIncludedFinal = articles.filter((a) => {
     if (a.fullTextFinal === 'INCLUDED') return true;
     const votes = codingReviewers.map((r) => a.fullTextDecisions[r.id]?.status);
-    return votes.length > 0 && votes.every((v) => v === 'INCLUDED');
+    return votes.length > 0 && votes.every((v) => v === 'EXCLUDED');
   }).length;
 
   const allArticleSegments = codedSegments.filter((s) => s.articleId === activeArticle?.id);
@@ -555,6 +555,7 @@ export default function Home() {
 
   const approvedSegmentsCount = codedSegments.filter((s) => s.status === 'CONSENSUS_APPROVED').length;
 
+  // CHAMADA RIGOROSAMENTE COM 3 ARGUMENTOS EXATOS:
   const overlapGroups = activeArticle
     ? groupSegmentsByOverlap(codedSegments, activeArticle.id, codingReviewers.length)
     : [];
