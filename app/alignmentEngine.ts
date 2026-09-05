@@ -12,13 +12,12 @@ export interface OverlapGroup {
 export function groupSegmentsByOverlap(
   segments: CodedSegment[],
   articleId: string,
-  totalReviewers: number
+  totalReviewers: number = 2
 ): OverlapGroup[] {
   const articleSegments = segments.filter((s) => s.articleId === articleId && s.status !== 'REJECTED');
   const groups: OverlapGroup[] = [];
 
   articleSegments.forEach((seg) => {
-    // Procura se já existe um grupo com trecho similar
     let existingGroup = groups.find((g) =>
       g.segments.some(
         (s) =>
@@ -28,7 +27,6 @@ export function groupSegmentsByOverlap(
     );
 
     if (existingGroup) {
-      // Evita duplicar o mesmo revisor no mesmo grupo
       if (!existingGroup.segments.some((s) => s.reviewerId === seg.reviewerId)) {
         existingGroup.segments.push(seg);
         if (!existingGroup.assignedCategoryIds.includes(seg.codeId)) {
@@ -47,7 +45,6 @@ export function groupSegmentsByOverlap(
     }
   });
 
-  // Atualiza o status de cada grupo baseado nos acordos
   return groups.map((g) => {
     const uniqueReviewers = new Set(g.segments.map((s) => s.reviewerId));
     const uniqueCategories = new Set(g.segments.map((s) => s.codeId));
