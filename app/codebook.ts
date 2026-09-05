@@ -13,7 +13,7 @@ export interface CodedSegment {
   codeId: string;
   reviewerId: string;
   selectedText: string;
-  notes: string;
+  notes?: string;
   status: 'PROPOSED' | 'CONSENSUS_APPROVED' | 'REJECTED';
   createdAt: string;
 }
@@ -21,18 +21,10 @@ export interface CodedSegment {
 export const defaultCategories: CodeCategory[] = [
   {
     id: 'cat-1',
-    name: 'Impacto Tecnológico',
+    name: 'Fundamentação Teórica',
     color: '#6366f1',
-    definition: 'Mecanismos de transformação digital e adoção de ferramentas.',
-    codingRule: 'Identificar menções diretas a ganhos de eficiência operacional.',
-    anchorSample: 'A introdução da ferramenta reduziu o tempo de triagem em 40%.',
-  },
-  {
-    id: 'cat-2',
-    name: 'Barreiras Metodológicas',
-    color: '#ec4899',
-    definition: 'Dificuldades estruturais, viés de seleção ou limitações de amostra.',
-    codingRule: 'Anotar trechos que descrevam obstáculos na execução teórica.',
-    anchorSample: 'A heterogeneidade das bases de dados impediu uma meta-análise unificada.',
+    definition: 'Conceitos centrais e arcabouço teórico que sustentam o estudo.',
+    codingRule: 'Marcar trechos conceituais.',
+    anchorSample: 'Exemplo de âncora teórica.',
   },
 ];
