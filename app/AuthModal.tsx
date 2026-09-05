@@ -34,11 +34,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         });
         if (error) throw error;
 
-        // Se o Supabase já retornar a sessão direto (email confirmation desligado)
         if (data.session && data.user) {
           onSuccess(data.user);
         } else if (data.user && !data.session) {
-          // Se ainda exigir confirmação por e-mail
           setInfoMsg('Conta criada! Verifique sua caixa de entrada para confirmar o e-mail antes de entrar.');
         }
       } else {
