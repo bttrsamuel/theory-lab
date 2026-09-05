@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import AuthModal from './AuthModal';
@@ -283,7 +285,7 @@ export default function Home() {
           screeningFinal: undefined,
           fullTextFinal: undefined,
           pdfFile: null,
-          fullTextContent: `[Texto do Estudo: ${a.title}]\n\n1. Introdução Teórica\nEstudo direcionado à fundamentação conceitual e levantamento de evidências empíricas.\n\n2. Métodos e Evidências Empíricas\nResultados obtidos mediante observação de campo e análise documental.\n\n3. Discussão dos Resultados\nApresentação de dados com implicações diretas sobre the categorias a priori.`,
+          fullTextContent: `[Texto do Estudo: ${a.title}]\n\n1. Introdução Teórica\nEstudo direcionado à fundamentação conceitual e levantamento de evidências empíricas.\n\n2. Métodos e Evidências Empíricas\nResultados obtidos mediante observação de campo e análise documental.\n\n3. Discussão dos Resultados\nApresentação de dados com implicações diretas sobre as categorias a priori.`,
         }));
 
         setRawImportedArticles(mapped);
@@ -555,7 +557,6 @@ export default function Home() {
 
   const approvedSegmentsCount = codedSegments.filter((s) => s.status === 'CONSENSUS_APPROVED').length;
 
-  // CHAMADA RIGOROSAMENTE COM 3 ARGUMENTOS EXATOS:
   const overlapGroups = activeArticle
     ? groupSegmentsByOverlap(codedSegments, activeArticle.id, codingReviewers.length)
     : [];
