@@ -1,6 +1,7 @@
 'use client';
 
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
@@ -36,6 +37,7 @@ interface MultiReviewerArticle extends Article {
   pdfFile?: File | null;
   pdfUrl?: string;
   fullTextContent?: string;
+  hasPdf?: boolean;
 }
 
 interface StudySummary {
@@ -50,24 +52,19 @@ interface StudySummary {
 }
 
 export default function Home() {
-  // Autenticação
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-  // Lista de Estudos (Dashboard)
   const [studies, setStudies] = useState<StudySummary[]>([]);
   const [activeStudy, setActiveStudy] = useState<StudySummary | null>(null);
   const [loadingStudies, setLoadingStudies] = useState<boolean>(false);
 
-  // Modal Novo Estudo
   const [isNewStudyModalOpen, setIsNewStudyModalOpen] = useState<boolean>(false);
   const [newStudyTitle, setNewStudyTitle] = useState('');
   const [newStudyDesc, setNewStudyDesc] = useState('');
 
-  // Modal Compartilhar
   const [sharingStudy, setSharingStudy] = useState<StudySummary | null>(null);
 
-  // Estado do Estudo Ativo
   const [articles, setArticles] = useState<MultiReviewerArticle[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -78,7 +75,6 @@ export default function Home() {
   const [duplicatesRemovedCount, setDuplicatesRemovedCount] = useState<number>(0);
   const [isDeduplicated, setIsDeduplicated] = useState<boolean>(false);
 
-  // 1. Equipe de Triagem de Resumos
   const [screeningReviewers, setScreeningReviewers] = useState<Member[]>([
     { id: 'scr-1', name: 'Triador 1' },
     { id: 'scr-2', name: 'Triador 2' },
@@ -86,7 +82,6 @@ export default function Home() {
   const [activeScreeningId, setActiveScreeningId] = useState<string>('scr-1');
   const [newScreeningDraft, setNewScreeningDraft] = useState<string>('');
 
-  // 2. Equipe de Leitura Integral & Codificação
   const [codingReviewers, setCodingReviewers] = useState<Member[]>([
     { id: 'cod-1', name: 'Codificador 1' },
     { id: 'cod-2', name: 'Codificador 2' },
@@ -108,8 +103,8 @@ export default function Home() {
   });
 
   const [exclusionReasonDraft, setExclusionReasonDraft] = useState<string>('');
-  const [categories, setCategories] = useState<CodeCategory[]>([]);
-  const [selectedCodeId, setSelectedCodeId] = useState<string>('');
+  const [categories, setCategories] = useState<CodeCategory[]>(defaultCategories);
+  const [selectedCodeId, setSelectedCodeId] = useState<string>(defaultCategories[0]?.id || '');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatDefinition, setNewCatDefinition] = useState('');
@@ -120,7 +115,6 @@ export default function Home() {
   const [selectedTextDraft, setSelectedTextDraft] = useState<string>('');
   const [notesDraft, setNotesDraft] = useState<string>('');
 
-  // Gerenciamento de Membros das Equipes
   const handleAddScreeningReviewer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newScreeningDraft.trim()) return;
@@ -155,7 +149,6 @@ export default function Home() {
     if (activeCoderId === id) setActiveCoderId(remaining[0]?.id || '');
   };
 
-  // 1. Checa Sessão do Usuário
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -183,7 +176,6 @@ export default function Home() {
     };
   }, []);
 
-  // 2. Busca lista de estudos do usuário logado
   const loadStudies = async (email: string) => {
     setLoadingStudies(true);
     try {
@@ -197,7 +189,6 @@ export default function Home() {
     }
   };
 
-  // 3. Criar Novo Estudo
   const handleCreateStudy = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudyTitle.trim() || !currentUser?.email) return;
@@ -224,7 +215,6 @@ export default function Home() {
     }
   };
 
-  // 4. Selecionar um Estudo para Trabalhar
   const handleOpenStudy = async (study: StudySummary) => {
     setActiveStudy(study);
     setArticles([]);
@@ -249,6 +239,7 @@ export default function Home() {
             fullTextFinal: dbArt.full_text_final,
             fullTextExclusionReason: dbArt.full_text_exclusion_reason,
             fullTextContent: dbArt.full_text_content || '',
+            hasPdf: false,
           }));
           setArticles(mapped);
           setRawImportedCount(mapped.length);
@@ -266,7 +257,6 @@ export default function Home() {
     setCurrentUser(null);
   };
 
-  // Upload dos Artigos Brutos (.ris)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeStudy) return;
@@ -285,6 +275,7 @@ export default function Home() {
           screeningFinal: undefined,
           fullTextFinal: undefined,
           pdfFile: null,
+          hasPdf: false,
           fullTextContent: `[Texto do Estudo: ${a.title}]\n\n1. Introdução Teórica\nEstudo direcionado à fundamentação conceitual e levantamento de evidências empíricas.\n\n2. Métodos e Evidências Empíricas\nResultados obtidos mediante observação de campo e análise documental.\n\n3. Discussão dos Resultados\nApresentação de dados com implicações diretas sobre as categorias a priori.`,
         }));
 
@@ -486,7 +477,6 @@ export default function Home() {
     setIsCategoryModalOpen(false);
   };
 
-  // Filtros de Artigos Visíveis
   const visibleArticles = articles.filter((art) => {
     if (currentStep === 2) return pilotSampleIds.includes(art.id);
     if (currentStep === 3) return !pilotSampleIds.includes(art.id);
@@ -517,7 +507,6 @@ export default function Home() {
 
   const activeArticle = visibleArticles[selectedIndex] || visibleArticles[0] || null;
 
-  // Estatísticas PRISMA
   const pilotArticles = articles.filter((a) => pilotSampleIds.includes(a.id));
   const screeningIds = screeningReviewers.map((r) => r.id);
   const calibrationResult = calculateMultiReviewerCalibration(
@@ -566,13 +555,9 @@ export default function Home() {
     downloadCSV('matriz_evidencias_qualitativas.csv', csv);
   };
 
-  // ==========================================
-  // VISTA 1: DASHBOARD DE ESTUDOS (WORKSPACE)
-  // ==========================================
   if (!activeStudy) {
     return (
       <main className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col font-sans">
-        {/* Topbar do Dashboard */}
         <header className="h-16 border-b border-slate-800 bg-slate-900/60 backdrop-blur px-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BookOpen className="w-6 h-6 text-indigo-400" />
@@ -606,7 +591,6 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Conteúdo Central */}
         <div className="flex-1 max-w-6xl w-full mx-auto p-8 space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
             <div>
@@ -624,7 +608,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Tabela de Estudos */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-300">
@@ -703,7 +686,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Modal Novo Estudo */}
         {isNewStudyModalOpen && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
             <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
@@ -760,7 +742,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Modal Compartilhar */}
         {sharingStudy && (
           <ShareStudyModal
             isOpen={!!sharingStudy}
@@ -771,7 +752,6 @@ export default function Home() {
           />
         )}
 
-        {/* Modal Login/Cadastro */}
         <AuthModal
           isOpen={isAuthModalOpen}
           onSuccess={(user) => {
@@ -784,12 +764,8 @@ export default function Home() {
     );
   }
 
-  // ==========================================
-  // VISTA 2: ESPAÇO DE TRABALHO DO ESTUDO ATIVO
-  // ==========================================
   return (
     <main className="flex h-screen w-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
-      {/* Barra Lateral Esquerda */}
       <aside className="w-80 border-r border-slate-800 flex flex-col bg-slate-950">
         <header className="p-4 border-b border-slate-800 space-y-3">
           <button
@@ -819,7 +795,6 @@ export default function Home() {
             <input type="file" accept=".ris,.txt,.nbib" className="hidden" onChange={handleFileUpload} />
           </label>
 
-          {/* Stepper Metodológico */}
           <div className="flex flex-col gap-1 pt-1 text-[11px]">
             <button
               onClick={() => setCurrentStep(1)}
@@ -961,7 +936,6 @@ export default function Home() {
           )}
         </header>
 
-        {/* Lista de Artigos */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
           {currentStep === 1 || currentStep === 8 ? (
             <div className="p-4 text-xs text-slate-500 text-center">
@@ -1009,9 +983,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Painel Central */}
       <section className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
-        {/* ETAPA 1 */}
         {currentStep === 1 && (
           <div className="flex-1 p-8 overflow-y-auto max-w-3xl mx-auto flex flex-col justify-center">
             <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl space-y-6 shadow-xl">
@@ -1022,7 +994,6 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Desduplicação Manual */}
               {rawImportedCount > 0 && (
                 <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
@@ -1069,7 +1040,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Equipe 1: Triagem de Resumos com Adição e Remoção */}
               <div className="space-y-3 bg-slate-900 p-4 rounded-lg border border-slate-800 text-xs">
                 <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-indigo-400" /> Equipe de Triagem de Resumos ({screeningReviewers.length}):
@@ -1104,7 +1074,6 @@ export default function Home() {
                 </form>
               </div>
 
-              {/* Equipe 2: Codificação com Adição e Remoção */}
               <div className="space-y-3 bg-slate-900 p-4 rounded-lg border border-slate-800 text-xs">
                 <span className="text-purple-300 font-semibold flex items-center gap-1.5">
                   <UserCheck className="w-4 h-4 text-purple-400" /> Equipe de Leitura Integral & Codificação ({codingReviewers.length}):
@@ -1139,7 +1108,6 @@ export default function Home() {
                 </form>
               </div>
 
-              {/* Piloto e Critério */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2 bg-slate-900 p-4 rounded-lg border border-slate-800">
                   <div className="flex justify-between items-center text-xs font-semibold">
@@ -1201,7 +1169,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ETAPA 2 ou 3: Triagem de Resumos */}
         {(currentStep === 2 || currentStep === 3) && activeArticle && (
           <>
             <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full">
@@ -1247,7 +1214,6 @@ export default function Home() {
           </>
         )}
 
-        {/* ETAPA 4: Consenso Resumos */}
         {currentStep === 4 && (
           <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full">
             <h2 className="text-xl font-bold mb-2 text-indigo-400">Mesa de Consenso da Triagem de Resumos</h2>
@@ -1283,7 +1249,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ETAPA 5: Leitura Integral (PDFs) */}
         {currentStep === 5 && activeArticle && (
           <>
             <div className="flex-1 p-6 overflow-y-auto max-w-5xl mx-auto w-full">
@@ -1347,7 +1312,6 @@ export default function Home() {
           </>
         )}
 
-        {/* ETAPA 6: Consenso Leitura Integral */}
         {currentStep === 6 && (
           <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full">
             <h2 className="text-xl font-bold mb-2 text-purple-400">Mesa de Consenso da Leitura Integral</h2>
@@ -1387,7 +1351,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ETAPA 7: Análise, Ancoragem e Pareamento */}
         {currentStep === 7 && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <div className="bg-slate-950 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between">
@@ -1455,7 +1418,7 @@ export default function Home() {
 
                         {(analysisViewType === 'SPLIT' || analysisViewType === 'TEXT_ONLY' || !activeArticle.hasPdf) && (
                           <div className="flex flex-col h-full overflow-hidden">
-                            <div className="p-2 bg-slate-900/80 rounded-t-lg border border-b-0 border-slate-800 text-xs text-slate-400">
+                            <div className="p-2 bg-slate-900/85 rounded-t-lg border border-b-0 border-slate-800 text-xs text-slate-400">
                               Selecione o trecho empírico no texto abaixo para ancorar na categoria teórica:
                             </div>
                             <div 
@@ -1541,7 +1504,6 @@ export default function Home() {
                   </>
                 )}
 
-                {/* 7.2 Mesa de Alinhamento */}
                 {codingSubTab === 'ALIGNMENT' && (
                   <div className="flex-1 p-8 overflow-y-auto max-w-5xl mx-auto w-full space-y-6">
                     <div>
@@ -1680,7 +1642,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ETAPA 8: Diagrama PRISMA com Desduplicação */}
         {currentStep === 8 && (
           <div className="flex-1 p-8 overflow-y-auto max-w-5xl mx-auto w-full space-y-6">
             <header className="pb-4 border-b border-slate-800 flex items-center justify-between">
@@ -1725,7 +1686,6 @@ export default function Home() {
         )}
       </section>
 
-      {/* Modal Categoria */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-lg shadow-2xl">
