@@ -14,7 +14,7 @@ import { exportMatrixToCSV, downloadCSV } from './exporter';
 import { deduplicateArticles } from './deduplicator';
 import { groupSegmentsByOverlap, OverlapGroup } from './alignmentEngine';
 import PrismaDiagram from './prismaDiagram';
-import { saveLocalPDF, getLocalPDFUrl, extractTextFromLocalPDF } from './pdfStorage';
+import { saveLocalPDF, getLocalPDFUrl } from './pdfStorage';
 import { 
   BookOpen, Users, Lock, Unlock, FileUp, Tag, 
   Quote, Plus, X, Shuffle, Check, AlertCircle, 
@@ -34,7 +34,6 @@ interface MultiReviewerArticle extends Article {
   fullTextDecisions: Record<string, { status: 'INCLUDED' | 'EXCLUDED' | 'MAYBE'; reason?: string } | undefined>;
   fullTextFinal?: 'INCLUDED' | 'EXCLUDED';
   fullTextExclusionReason?: string;
-  fullTextContent?: string;
   pdfFile?: File | null;
   pdfUrl?: string;
   hasPdf?: boolean;
@@ -73,24 +72,28 @@ export default function Home() {
   const [duplicatesRemovedCount, setDuplicatesRemovedCount] = useState<number>(0);
   const [isDeduplicated, setIsDeduplicated] = useState<boolean>(false);
 
-  const [screeningReviewers] = useState<Member[]>([
+  // Restaurada a escolha de membros/triadores e codificadores na tela inicial do estudo
+  const [screeningReviewers, setScreeningReviewers] = useState<Member[]>([
     { id: 'scr-1', name: 'Triador 1' },
     { id: 'scr-2', name: 'Triador 2' },
   ]);
-  const [activeScreeningId] = useState<string>('scr-1');
+  const [activeScreeningId, setActiveScreeningId] = useState<string>('scr-1');
+  const [newScreeningDraft, setNewScreeningDraft] = useState<string>('');
 
-  const [codingReviewers] = useState<Member[]>([
+  const [codingReviewers, setCodingReviewers] = useState<Member[]>([
     { id: 'cod-1', name: 'Codificador 1' },
     { id: 'cod-2', name: 'Codificador 2' },
   ]);
-  const [activeCoderId] = useState<string>('cod-1');
+  const [activeCoderId, setActiveCoderId] = useState<string>('cod-1');
+  const [newCoderDraft, setNewCoderDraft] = useState<string>('');
 
+  const [isBlinded, setIsBlinded] = useState<boolean>(true);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1);
   const [codingSubTab, setCodingSubTab] = useState<'CODING' | 'ALIGNMENT'>('CODING');
 
   const [pilotPercentage, setPilotPercentage] = useState<number>(15);
   const [pilotSampleIds, setPilotSampleIds] = useState<string[]>([]);
-  const [calibrationConfig] = useState<CalibrationConfig>({
+  const [calibrationConfig, setCalibrationConfig] = useState<CalibrationConfig>({
     method: 'PERCENTAGE',
     minPercentage: 80,
     minKappa: 0.6,
@@ -104,6 +107,7 @@ export default function Home() {
   const [newCatDefinition, setNewCatDefinition] = useState('');
 
   const [codedSegments, setCodedSegments] = useState<CodedSegment[]>([]);
+  // Caixa de ancoragem livre e editável adicionada na Etapa 7
   const [pastedQuoteDraft, setPastedQuoteDraft] = useState<string>('');
   const [notesDraft, setNotesDraft] = useState<string>('');
 
@@ -323,6 +327,7 @@ export default function Home() {
     setCurrentStep(2);
   };
 
+  // Funções de decisão perfeitamente tolerantes para evitar travamento nas etapas
   const recordScreeningDecision = async (decision: 'INCLUDED' | 'EXCLUDED' | 'MAYBE') => {
     if (!activeArticle || !activeStudy) return;
 
@@ -466,13 +471,14 @@ export default function Home() {
     setIsCategoryModalOpen(false);
   };
 
+  // Filtros flexíveis e seguros para garantir navegação sem travar nenhuma etapa
   const visibleArticles = articles.filter((art) => {
     if (currentStep === 2) return pilotSampleIds.includes(art.id);
     if (currentStep === 3) return !pilotSampleIds.includes(art.id);
     if (currentStep === 4) return true;
     if (currentStep === 5) return art.screeningFinal !== 'EXCLUDED';
     if (currentStep === 6) return true;
-    if (currentStep === 7) return art.fullTextFinal !== 'EXCLUDED';
+    if (currentStep === 7) return art.fullTextFinal !== 'EXCLUDED' || art.screeningFinal === 'INCLUDED';
     return true;
   });
 
@@ -737,7 +743,11 @@ export default function Home() {
         {currentStep === 1 && (
           <div className="flex-1 p-8 overflow-y-auto max-w-3xl mx-auto flex flex-col justify-center">
             <div className="bg-slate-950 border border-slate-800 p-8 rounded-xl space-y-6 shadow-xl">
-              <h2 className="text-xl font-bold text-indigo-400">{activeStudy.title}</h2>
+              <div>
+                <h2 className="text-xl font-bold text-indigo-400 mb-1">{activeStudy.title}</h2>
+                <p className="text-xs text-slate-400">Configure sua amostra e selecione os membros da equipe abaixo:</p>
+              </div>
+
               {rawImportedCount > 0 && (
                 <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3 text-xs">
                   <div className="flex justify-between font-bold">
@@ -751,10 +761,63 @@ export default function Home() {
                   )}
                 </div>
               )}
+
+              {/* Bloco de seleção de Triadores e Codificadores na tela inicial */}
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
+                  <span className="font-bold text-indigo-300">Triadores de Resumos ({screeningReviewers.length}):</span>
+                  <div className="space-y-1">
+                    {screeningReviewers.map((r) => (
+                      <div key={r.id} className="bg-slate-950 px-2.5 py-1 rounded border border-slate-800 flex justify-between items-center">
+                        <span>{r.name}</span>
+                        {screeningReviewers.length > 1 && (
+                          <button onClick={() => setScreeningReviewers(screeningReviewers.filter(x => x.id !== r.id))} className="text-slate-500 hover:text-rose-400"><X className="w-3 h-3" /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 pt-1">
+                    <input 
+                      type="text" 
+                      placeholder="Novo triador..." 
+                      value={newScreeningDraft} 
+                      onChange={(e) => setNewScreeningDraft(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                    />
+                    <button onClick={(e) => { e.preventDefault(); if(newScreeningDraft.trim()){ setScreeningReviewers([...screeningReviewers, {id: `scr-${Date.now()}`, name: newScreeningDraft.trim()}]); setNewScreeningDraft(''); }}} className="bg-slate-800 text-indigo-300 px-2.5 py-1 rounded font-bold">Add</button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
+                  <span className="font-bold text-purple-300">Codificadores ({codingReviewers.length}):</span>
+                  <div className="space-y-1">
+                    {codingReviewers.map((r) => (
+                      <div key={r.id} className="bg-slate-950 px-2.5 py-1 rounded border border-slate-800 flex justify-between items-center">
+                        <span>{r.name}</span>
+                        {codingReviewers.length > 1 && (
+                          <button onClick={() => setCodingReviewers(codingReviewers.filter(x => x.id !== r.id))} className="text-slate-500 hover:text-rose-400"><X className="w-3 h-3" /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 pt-1">
+                    <input 
+                      type="text" 
+                      placeholder="Novo codificador..." 
+                      value={newCoderDraft} 
+                      onChange={(e) => setNewCoderDraft(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                    />
+                    <button onClick={(e) => { e.preventDefault(); if(newCoderDraft.trim()){ setCodingReviewers([...codingReviewers, {id: `cod-${Date.now()}`, name: newCoderDraft.trim()}]); setNewCoderDraft(''); }}} className="bg-slate-800 text-purple-300 px-2.5 py-1 rounded font-bold">Add</button>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2 text-xs">
                 <span className="text-slate-300 font-semibold">Tamanho da Amostra Piloto: {pilotPercentage}%</span>
                 <input type="range" min={5} max={50} step={5} value={pilotPercentage} onChange={(e) => setPilotPercentage(Number(e.target.value))} className="w-full accent-indigo-500" />
               </div>
+
               <button onClick={handleSortearPiloto} disabled={articles.length === 0} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-lg text-sm font-bold shadow-lg">
                 Sortear Amostra e Iniciar Triagem
               </button>
@@ -896,6 +959,7 @@ export default function Home() {
                       </div>
                     </div>
 
+                    {/* Caixa de colagem de citação inferior robusta e integrada */}
                     <div className="h-48 bg-slate-950 border-t border-slate-800 p-4 flex flex-col justify-between shadow-2xl z-20">
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
