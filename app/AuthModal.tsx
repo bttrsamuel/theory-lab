@@ -27,10 +27,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setInfoMsg('');
 
     try {
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
+          options: {
+            emailRedirectTo: currentOrigin,
+          },
         });
         if (error) throw error;
 

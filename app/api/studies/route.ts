@@ -45,26 +45,29 @@ export async function POST(req: Request) {
 
   try {
     if (action === 'CREATE_STUDY') {
-      const { title, description, ownerEmail, ownerId } = payload;
+      const { title, description, ownerEmail } = payload;
       const studyId = `std-${Date.now()}`;
 
       await client.query(
-        `INSERT INTO projects (id, title, description, owner_email, owner_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [studyId, title, description || '', ownerEmail.toLowerCase().trim(), ownerId || null]
+        `INSERT INTO projects (id, title, description, owner_email)
+         VALUES ($1, $2, $3, $4)`,
+        [studyId, title, description || '', ownerEmail.toLowerCase().trim()]
       );
 
       return NextResponse.json({ success: true, studyId });
     }
 
     if (action === 'SHARE_STUDY') {
-      const { studyId, targetEmail, role } = payload;
+      const { studyId, targetEmail, roles } = payload;
+
+      // Converte o array de papéis (ex: ['SCREENER', 'CODER']) em uma string unificada (ex: 'SCREENER,CODER')
+      const rolesString = Array.isArray(roles) ? roles.join(',') : (roles || 'SCREENER');
 
       await client.query(
         `INSERT INTO project_members (project_id, user_email, role)
          VALUES ($1, $2, $3)
          ON CONFLICT (project_id, user_email) DO UPDATE SET role = $3`,
-        [studyId, targetEmail.toLowerCase().trim(), role || 'SCREENER']
+        [studyId, targetEmail.toLowerCase().trim(), rolesString]
       );
 
       return NextResponse.json({ success: true });

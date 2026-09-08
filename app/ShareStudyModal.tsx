@@ -19,12 +19,23 @@ export default function ShareStudyModal({
   onSharedSuccess,
 }: ShareStudyModalProps) {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'SCREENER' | 'CODER' | 'ARBITER'>('SCREENER');
+  // Agora usamos um array de papéis em vez de uma única string
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['SCREENER']);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
+
+  const handleCheckboxChange = (roleKey: string) => {
+    if (selectedRoles.includes(roleKey)) {
+      // Impede desmarcar tudo para garantir pelo menos um papel ativo
+      if (selectedRoles.length === 1) return;
+      setSelectedRoles(selectedRoles.filter((r) => r !== roleKey));
+    } else {
+      setSelectedRoles([...selectedRoles, roleKey]);
+    }
+  };
 
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +51,7 @@ export default function ShareStudyModal({
           payload: {
             studyId,
             targetEmail: email,
-            role,
+            roles: selectedRoles, // Enviando a lista de papéis selecionados
           },
         }),
       });
@@ -51,6 +62,7 @@ export default function ShareStudyModal({
         setTimeout(() => {
           setSuccess(false);
           setEmail('');
+          setSelectedRoles(['SCREENER']);
           onClose();
         }, 1500);
       } else {
@@ -100,16 +112,38 @@ export default function ShareStudyModal({
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Papel atribuído:</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-200 outline-none"
-              >
-                <option value="SCREENER">Triador (Avalia Título e Resumo)</option>
-                <option value="CODER">Codificador (Leitura Integral e Extração Qualitativa)</option>
-                <option value="ARBITER">Árbitro / Consenso (Voto de Desempate)</option>
-              </select>
+              <label className="block text-slate-300 font-semibold mb-2">Papéis atribuídos (Selecione um ou mais):</label>
+              <div className="space-y-2 bg-slate-950 p-3 rounded border border-slate-700">
+                <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoles.includes('SCREENER')}
+                    onChange={() => handleCheckboxChange('SCREENER')}
+                    className="accent-indigo-500 w-4 h-4 rounded"
+                  />
+                  <span><strong>Triador</strong> (Avalia Título e Resumo)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoles.includes('CODER')}
+                    onChange={() => handleCheckboxChange('CODER')}
+                    className="accent-indigo-500 w-4 h-4 rounded"
+                  />
+                  <span><strong>Codificador</strong> (Leitura Integral e Extração)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoles.includes('ARBITER')}
+                    onChange={() => handleCheckboxChange('ARBITER')}
+                    className="accent-indigo-500 w-4 h-4 rounded"
+                  />
+                  <span><strong>Árbitro / Consenso</strong> (Voto de Desempate)</span>
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">

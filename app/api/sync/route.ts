@@ -1,75 +1,114 @@
 import { NextResponse } from 'next/server';
-import { pool } from '@/app/db';
+import { supabase } from '@/app/supabaseClient';
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
 
-  try {
-    const client = await pool.connect();
-    try {
-      let query = 'SELECT * FROM articles';
-      const params: any[] = [];
-
-      if (projectId) {
-        query += ' WHERE project_id = $1';
-        params.push(projectId);
-      }
-
-      query += ' ORDER BY created_at ASC';
-      const res = await client.query(query, params);
-      return NextResponse.json({ articles: res.rows });
-    } finally {
-      client.release();
-    }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!projectId) {
+    return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
   }
+
+  const { data: projectData, error: projError } = await supabase
+    .from('projects')
+    .select('current_step, coded_segments')
+    .eq('id', projectId)
+    .single();
+
+  if (projError) {
+    return NextResponse.json({ error: projError.message }, { status: 400 });
+  }
+
+  const { data: articles, error: artError } = await supabase
+    .from('articles')
+    .select('*')
+    .eq('project_id', projectId);
+
+  if (artError) {
+    return NextResponse.json({ error: artError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    currentStep: projectData?.current_step || 1,
+    codedSegments: projectData?.coded_segments || [],
+    articles,
+  });
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { action, payload } = body;
-    const client = await pool.connect();
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { action, payload } = body;
 
-    try {
-      if (action === 'BULK_INSERT_ARTICLES') {
-        const { articles, projectId } = payload;
-        for (const art of articles) {
-          await client.query(
-            `INSERT INTO articles (id, project_id, title, authors, year, abstract, doi, full_text_content)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (id, project_id) DO NOTHING`,
-            [
-              art.id,
-              projectId || 'PRJ-DEFAULT',
-              art.title,
-              art.authors || [],
-              art.year || '',
-              art.abstract || '',
-              art.doi || '',
-              art.fullTextContent || '',
-            ]
-          );
-        }
-      }
+  if (action === 'SAVE_PROGRESS') {
+    const { projectId, currentStep, codedSegments } = payload;
+    const { error } = await supabase
+      .from('projects')
+      .update({
+        current_step: currentStep,
+        coded_segments: codedSegments,
+      })
+      .eq('id', projectId);
 
-      if (action === 'VOTE_SCREENING') {
-        const { articleId, projectId, reviewerId, decision } = payload;
-        await client.query(
-          `UPDATE articles 
-           SET screening_decisions = jsonb_set(COALESCE(screening_decisions, '{}'::jsonb), ARRAY[$1], to_jsonb($2::text))
-           WHERE id = $3 AND project_id = $4`,
-          [reviewerId, decision, articleId, projectId || 'PRJ-DEFAULT']
-        );
-      }
-
-      return NextResponse.json({ success: true });
-    } finally {
-      client.release();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
   }
+
+  if (action === 'BULK_INSERT_ARTICLES') {
+    const { articles, projectId } = payload;
+    if (!articles || !projectId) {
+      return NextResponse.json({ error: 'Missing articles or projectId' }, { status: 400 });
+    }
+
+    const rowsToInsert = articles.map((a: any) => ({
+      id: a.id,
+      project_id: projectId,
+      title: a.title,
+      authors: a.authors,
+      year: a.year,
+      abstract: a.abstract,
+      doi: a.doi,
+      screening_decisions: a.screeningDecisions || {},
+      full_text_decisions: a.fullTextDecisions || {},
+      full_text_content: a.fullTextContent || '',
+    }));
+
+    const { error } = await supabase
+      .from('articles')
+      .upsert(rowsToInsert, { onConflict: 'id' });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === 'VOTE_SCREENING') {
+    const { articleId, reviewerId, decision } = payload;
+    const { data: art, error: fetchError } = await supabase
+      .from('articles')
+      .select('screening_decisions')
+      .eq('id', articleId)
+      .single();
+
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 400 });
+    }
+
+    const currentDecisions = art?.screening_decisions || {};
+    currentDecisions[reviewerId] = decision;
+
+    const { error: updateError } = await supabase
+      .from('articles')
+      .update({ screening_decisions: currentDecisions })
+      .eq('id', articleId);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
